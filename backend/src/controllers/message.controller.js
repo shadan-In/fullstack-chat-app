@@ -100,30 +100,58 @@ export const sendMessage = async (req, res) => {
     let imageUrl;
     if (image) {
       try {
-        // Check if the image data is too large (>10MB)
+        // Check if the image data is too large (>25MB)
         const base64Length = image.length;
         const sizeInBytes = (base64Length * 3) / 4 - (image.endsWith('==') ? 2 : image.endsWith('=') ? 1 : 0);
         const sizeInMB = sizeInBytes / (1024 * 1024);
 
-        if (sizeInMB > 10) {
-          return res.status(400).json({ error: "Image size must be less than 10MB" });
+        console.log("Image size in MB:", sizeInMB);
+
+        if (sizeInMB > 25) {
+          return res.status(400).json({ error: "Image size must be less than 25MB" });
         }
 
-        // Upload to Cloudinary with optimization settings
-        const uploadResponse = await cloudinary.uploader.upload(image, {
+        // Determine if we need to use eager transformations for large images
+        const uploadOptions = {
           folder: "chat_images",
-          resource_type: "image",
+          resource_type: "auto", // Auto-detect resource type (image, video, etc.)
           format: "auto", // Auto-detect best format
           quality: "auto", // Auto-optimize quality
-          transformation: [
-            { width: 1200, crop: "limit" }, // Limit max width while maintaining aspect ratio
-          ],
-        });
+        };
+
+        // For larger images, add more aggressive optimization
+        if (sizeInMB > 5) {
+          uploadOptions.transformation = [
+            { width: 1800, crop: "limit" }, // Limit max width while maintaining aspect ratio
+            { quality: "auto:good" }, // Use good quality for large images
+          ];
+        } else {
+          uploadOptions.transformation = [
+            { width: 2000, crop: "limit" }, // Limit max width while maintaining aspect ratio
+            { quality: "auto:best" }, // Use best quality for smaller images
+          ];
+        }
+
+        console.log("Uploading image to Cloudinary with options:", uploadOptions);
+
+        // Upload to Cloudinary with optimization settings
+        const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
+
+        console.log("Cloudinary upload successful:", uploadResponse.secure_url);
 
         imageUrl = uploadResponse.secure_url;
       } catch (cloudinaryError) {
         console.error("Cloudinary upload error:", cloudinaryError);
-        return res.status(400).json({ error: "Error uploading image. Please try a different image or format." });
+        console.error("Error details:", cloudinaryError.message);
+
+        // Provide more specific error messages based on the error
+        if (cloudinaryError.message && cloudinaryError.message.includes("Invalid image file")) {
+          return res.status(400).json({ error: "Invalid image file. Please try a different image format." });
+        } else if (cloudinaryError.message && cloudinaryError.message.includes("timeout")) {
+          return res.status(400).json({ error: "Upload timed out. Please try a smaller image." });
+        } else {
+          return res.status(400).json({ error: "Error uploading image. Please try a different image or format." });
+        }
       }
     }
 

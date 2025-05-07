@@ -74,25 +74,32 @@ const ChatContainer = () => {
             <div className="chat-bubble flex flex-col max-w-[75vw] sm:max-w-[60vw] md:max-w-[50vw] lg:max-w-[40vw]">
               {message.image && (
                 <div className="relative group">
-                  <img
-                    src={message.image}
-                    alt="Attachment"
-                    className="max-w-full sm:max-w-[200px] md:max-w-[250px] rounded-md mb-2 hover:opacity-95 transition-opacity"
-                    onClick={() => {
-                      if (message.image) {
-                        window.open(message.image, '_blank');
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/broken-image.png";
-                      e.target.className = "max-w-[100px] rounded-md mb-2 opacity-70";
-                      e.target.title = "Image failed to load";
-                    }}
-                  />
+                  <div className="relative overflow-hidden rounded-md mb-2">
+                    <img
+                      src={message.image}
+                      alt="Attachment"
+                      className="max-w-full sm:max-w-[250px] md:max-w-[300px] lg:max-w-[350px] rounded-md hover:opacity-95 transition-opacity object-contain"
+                      onClick={() => {
+                        if (message.image) {
+                          window.open(message.image, '_blank');
+                        }
+                      }}
+                      style={{ cursor: 'pointer' }}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "https://placehold.co/200x200/e0e0e0/ff0000?text=Image+Error";
+                        e.target.className = "max-w-[150px] rounded-md opacity-70";
+                        e.target.title = "Image failed to load";
+                      }}
+                    />
+                    {/* Loading indicator */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md image-loading-indicator">
+                      <div className="loading-spinner"></div>
+                    </div>
+                  </div>
                   <div className="absolute bottom-3 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    View
+                    View Full Image
                   </div>
                 </div>
               )}

@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Image loading spinner */
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Hide loading indicator when image is loaded */
+img:not([loading]) + .image-loading-indicator {
+  display: none;
+}
+
+/* Improve image display */
+.chat-bubble img {
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 0.375rem;
+}

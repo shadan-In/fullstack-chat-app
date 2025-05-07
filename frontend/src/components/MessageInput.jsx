@@ -18,26 +18,38 @@ const MessageInput = () => {
     // Check if file exists
     if (!file) return;
 
-    // Validate file type
-    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
+    // Validate file type - accept all common image formats
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg', 'image/bmp', 'image/tiff', 'image/svg+xml'];
     if (!validImageTypes.includes(file.type)) {
-      toast.error("Please select a valid image file (JPEG, PNG, GIF, or WebP)");
+      toast.error("Please select a valid image file (JPEG, PNG, GIF, JPG, BMP, TIFF, SVG, or WebP)");
       return;
     }
 
-    // Check file size (limit to 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    // Check file size (increased to 20MB)
+    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
     if (file.size > maxSize) {
-      toast.error("Image size must be less than 5MB");
+      toast.error("Image size must be less than 20MB");
       return;
+    }
+
+    // Show loading toast for large images
+    let toastId;
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      toastId = toast.loading("Processing large image...");
     }
 
     // Read and preview the image
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
     };
     reader.onerror = () => {
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
       toast.error("Error reading file");
     };
     reader.readAsDataURL(file);
@@ -84,10 +96,24 @@ const MessageInput = () => {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
 
-    // Show loading toast for image uploads
+    // Show loading toast for image uploads with appropriate message
     let toastId;
     if (imagePreview) {
-      toastId = toast.loading("Sending image...");
+      // Estimate image size
+      const base64Length = imagePreview.length;
+      const sizeInBytes = (base64Length * 3) / 4 - (imagePreview.endsWith('==') ? 2 : imagePreview.endsWith('=') ? 1 : 0);
+      const sizeInMB = sizeInBytes / (1024 * 1024);
+
+      // Show different messages based on image size
+      if (sizeInMB > 10) {
+        toastId = toast.loading("Uploading large image... This may take a moment");
+      } else if (sizeInMB > 5) {
+        toastId = toast.loading("Uploading image...");
+      } else {
+        toastId = toast.loading("Sending message...");
+      }
+
+      console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
     }
 
     try {
@@ -104,6 +130,7 @@ const MessageInput = () => {
       // Dismiss loading toast if it exists
       if (toastId) {
         toast.dismiss(toastId);
+        toast.success("Message sent successfully");
       }
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -116,6 +143,8 @@ const MessageInput = () => {
       // Display specific error message if available
       if (error.response?.data?.error) {
         toast.error(error.response.data.error);
+      } else if (imagePreview && imagePreview.length > 1000000) { // If it's a large image
+        toast.error("Failed to send large image. Try reducing the image size or using a different format.");
       } else {
         toast.error("Failed to send message. Please try again.");
       }
@@ -179,7 +208,7 @@ const MessageInput = () => {
 
           <input
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,image/jpg"
+            accept="image/*"
             className="hidden"
             ref={fileInputRef}
             onChange={handleImageChange}
