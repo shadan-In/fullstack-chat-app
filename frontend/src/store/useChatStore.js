@@ -28,8 +28,8 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     set({ isMessagesLoading: true });
     try {
-      // Use axios params object instead of URL template literals
-      const res = await axiosInstance.get('/messages/' + userId);
+      // Use the new explicit endpoint with userId parameter
+      const res = await axiosInstance.get(`/messages/chat/${userId}`);
       set({ messages: res.data });
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -41,8 +41,8 @@ export const useChatStore = create((set, get) => ({
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
     try {
-      // Use a simpler URL pattern to avoid path-to-regexp issues
-      const res = await axiosInstance.post('/messages/send/' + selectedUser._id, messageData);
+      // Use the new explicit endpoint with userId parameter
+      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
       set({ messages: [...messages, res.data] });
     } catch (error) {
       console.error("Error sending message:", error);

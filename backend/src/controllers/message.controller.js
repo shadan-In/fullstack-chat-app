@@ -46,7 +46,7 @@ export const searchUsers = async (req, res) => {
 export const getMessages = async (req, res) => {
   try {
     // Get the user ID from params safely
-    const userToChatId = req.params.id;
+    const userToChatId = req.params.userId;
 
     if (!userToChatId) {
       return res.status(400).json({ error: "User ID is required" });
@@ -76,7 +76,7 @@ export const getMessages = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { text, image } = req.body;
-    const receiverId = req.params.id;
+    const receiverId = req.params.userId;
 
     if (!receiverId) {
       return res.status(400).json({ error: "Receiver ID is required" });
