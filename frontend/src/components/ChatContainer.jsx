@@ -104,7 +104,7 @@ const ChatContainer = () => {
                 </div>
               )}
               {message.text && (
-                <p className="break-words whitespace-pre-wrap text-base leading-relaxed">
+                <p className="break-words whitespace-pre-wrap text-base leading-relaxed emoji-text">
                   {message.text}
                 </p>
               )}

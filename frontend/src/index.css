@@ -27,3 +27,19 @@ img:not([loading]) + .image-loading-indicator {
   object-fit: contain;
   border-radius: 0.375rem;
 }
+
+/* Improve emoji display */
+.emoji-text {
+  font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Symbol", sans-serif;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+/* Make emojis slightly larger */
+.emoji-text span.emoji {
+  font-size: 1.5rem;
+  vertical-align: middle;
+  line-height: 1;
+  display: inline-block;
+  margin: 0 0.05em;
+}

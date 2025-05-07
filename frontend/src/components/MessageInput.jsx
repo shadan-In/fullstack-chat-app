@@ -61,19 +61,45 @@ const MessageInput = () => {
   };
 
   // Handle emoji selection
-  const handleEmojiClick = (emojiData) => {
+  const handleEmojiClick = (emojiObject) => {
     // Log the emoji data to debug
-    console.log("Emoji selected:", emojiData);
+    console.log("Emoji selected:", emojiObject);
 
-    // Add the emoji to the text at the current cursor position
-    setText((prevText) => {
-      const emoji = emojiData.emoji || "";
-      return prevText + emoji;
-    });
+    try {
+      // Make sure we have a valid emoji object
+      if (!emojiObject || typeof emojiObject !== 'object') {
+        console.error("Invalid emoji object received:", emojiObject);
+        return;
+      }
 
-    // Don't close the picker on mobile to allow multiple emoji selection
-    if (window.innerWidth >= 640) { // sm breakpoint
-      setShowEmojiPicker(false);
+      // Get the emoji character - try different properties based on library version
+      const emoji = emojiObject.emoji ||
+                   (emojiObject.unified && String.fromCodePoint(parseInt(emojiObject.unified.split('-')[0], 16))) ||
+                   "";
+
+      if (!emoji) {
+        console.error("Could not extract emoji from object:", emojiObject);
+        return;
+      }
+
+      console.log("Adding emoji to text:", emoji);
+
+      // Add the emoji to the text
+      setText((prevText) => prevText + emoji);
+
+      // Show a toast to confirm emoji was selected
+      toast.success("Emoji added! 👍", {
+        duration: 1000,
+        position: "bottom-center",
+      });
+
+      // Don't close the picker on mobile to allow multiple emoji selection
+      if (window.innerWidth >= 640) { // sm breakpoint
+        setShowEmojiPicker(false);
+      }
+    } catch (error) {
+      console.error("Error handling emoji selection:", error);
+      toast.error("Failed to add emoji");
     }
   };
 
@@ -117,8 +143,18 @@ const MessageInput = () => {
     }
 
     try {
+      // Log the text being sent for debugging
+      console.log("Sending text message:", text);
+
+      // Check if text contains emojis and log them
+      const hasEmojis = /\p{Emoji}/u.test(text);
+      if (hasEmojis) {
+        console.log("Message contains emojis");
+      }
+
+      // Send the message
       await sendMessage({
-        text: text.trim(),
+        text: text,  // Don't trim to preserve emojis at the beginning/end
         image: imagePreview,
       });
 
@@ -239,7 +275,9 @@ const MessageInput = () => {
                   searchDisabled={false}
                   skinTonesDisabled={false}
                   autoFocusSearch={false}
-                  emojiStyle="native"
+                  emojiStyle="apple"
+                  lazyLoadEmojis={false}
+                  theme="light"
                 />
               </div>
             )}
@@ -289,7 +327,9 @@ const MessageInput = () => {
             searchDisabled={false}
             skinTonesDisabled={false}
             autoFocusSearch={false}
-            emojiStyle="native"
+            emojiStyle="apple"
+            lazyLoadEmojis={false}
+            theme="light"
           />
         </div>
       )}

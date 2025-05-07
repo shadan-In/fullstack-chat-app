@@ -95,6 +95,18 @@ export const sendMessage = async (req, res) => {
     // Log the received text for debugging
     console.log("Received message text:", text);
 
+    // Check if text contains emojis
+    if (text) {
+      try {
+        const hasEmojis = /\p{Emoji}/u.test(text);
+        if (hasEmojis) {
+          console.log("Message contains emojis");
+        }
+      } catch (error) {
+        console.error("Error checking for emojis:", error);
+      }
+    }
+
     const senderId = req.user._id;
 
     let imageUrl;
