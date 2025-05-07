@@ -16,9 +16,10 @@
   to { transform: rotate(360deg); }
 }
 
-/* Hide loading indicator when image is loaded */
-img:not([loading]) + .image-loading-indicator {
-  display: none;
+/* Ensure images display properly */
+.chat-bubble img {
+  display: block; /* Prevent inline issues */
+  min-height: 50px; /* Give some space for small images */
 }
 
 /* Improve image display */

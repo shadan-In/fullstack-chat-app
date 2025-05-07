@@ -112,8 +112,14 @@ export const sendMessage = async (req, res) => {
     let imageUrl;
     if (image) {
       try {
-        // Check if the image data is valid base64
-        if (!image.includes('base64')) {
+        // Validate image data format more strictly
+        if (!image.startsWith('data:image/')) {
+          console.error("Invalid image data format - missing data:image prefix");
+          return res.status(400).json({ error: "Invalid image data format" });
+        }
+
+        if (!image.includes('base64,')) {
+          console.error("Invalid image data format - missing base64 encoding");
           return res.status(400).json({ error: "Invalid image data format" });
         }
 
@@ -124,49 +130,79 @@ export const sendMessage = async (req, res) => {
 
         console.log("Image size in MB:", sizeInMB.toFixed(2));
 
-        // Limit image size to 8MB for reliability
-        if (sizeInMB > 8) {
-          return res.status(400).json({ error: "Image size must be less than 8MB. Please compress the image." });
+        // Limit image size to 3MB for guaranteed reliability
+        if (sizeInMB > 3) {
+          console.error("Image too large:", sizeInMB.toFixed(2) + "MB");
+          return res.status(400).json({ error: "Image size must be less than 3MB. Please compress the image." });
         }
 
-        // Set up Cloudinary upload options with better reliability
+        // Extract image format from data URL
+        const formatMatch = image.match(/^data:image\/(\w+);base64,/);
+        if (!formatMatch) {
+          console.error("Could not determine image format");
+          return res.status(400).json({ error: "Invalid image format" });
+        }
+
+        const imageFormat = formatMatch[1].toLowerCase();
+        console.log("Image format:", imageFormat);
+
+        // Only allow jpeg, jpg, and png for reliability
+        if (!['jpeg', 'jpg', 'png'].includes(imageFormat)) {
+          console.error("Unsupported image format:", imageFormat);
+          return res.status(400).json({ error: "Only JPEG and PNG images are supported" });
+        }
+
+        // Set up Cloudinary upload options with maximum reliability
         const uploadOptions = {
           folder: "chat_images",
           resource_type: "image", // Explicitly set as image
-          format: "auto", // Auto-detect best format
-          quality: "auto", // Auto-optimize quality
-          timeout: 60000, // 60 second timeout
+          format: "jpg", // Force JPEG format for consistency
+          quality: 80, // Fixed quality for reliability
+          timeout: 30000, // 30 second timeout (shorter is better for reliability)
+          use_filename: false, // Don't use original filename
+          unique_filename: true, // Ensure unique filenames
+          overwrite: false, // Don't overwrite existing files
         };
 
-        // Add optimization based on image size
-        if (sizeInMB > 2) {
-          uploadOptions.transformation = [
-            { width: 1200, height: 1200, crop: "limit" }, // Limit dimensions
-            { quality: 80 }, // Fixed quality for better reliability
-          ];
-        } else {
-          uploadOptions.transformation = [
-            { width: 1600, height: 1600, crop: "limit" }, // Limit dimensions
-            { quality: "auto:good" }, // Auto quality for smaller images
-          ];
-        }
+        // Simple transformation to ensure consistent results
+        uploadOptions.transformation = [
+          { width: 1000, height: 1000, crop: "limit" }, // Reasonable size limit
+          { quality: 80 }, // Fixed quality
+        ];
 
         console.log("Uploading image to Cloudinary...");
 
-        // Upload to Cloudinary with optimization settings and proper error handling
-        const uploadResponse = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload(image, uploadOptions, (error, result) => {
-            if (error) {
-              console.error("Cloudinary upload error:", error);
-              reject(error);
-            } else {
-              resolve(result);
-            }
-          });
-        });
+        // Extract the base64 data without the prefix
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
 
-        console.log("Cloudinary upload successful");
-        imageUrl = uploadResponse.secure_url;
+        // Upload to Cloudinary with optimization settings and proper error handling
+        try {
+          const uploadResponse = await new Promise((resolve, reject) => {
+            // Set a timeout for the upload
+            const uploadTimeout = setTimeout(() => {
+              reject(new Error("Upload timed out after 30 seconds"));
+            }, 30000);
+
+            cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+              clearTimeout(uploadTimeout);
+
+              if (error) {
+                console.error("Cloudinary upload error:", error);
+                reject(error);
+              } else if (!result || !result.secure_url) {
+                reject(new Error("Invalid response from Cloudinary"));
+              } else {
+                resolve(result);
+              }
+            }).end(Buffer.from(base64Data, 'base64'));
+          });
+
+          console.log("Cloudinary upload successful");
+          imageUrl = uploadResponse.secure_url;
+        } catch (uploadError) {
+          console.error("Error during upload stream:", uploadError);
+          throw uploadError; // Re-throw to be caught by the outer catch block
+        }
       } catch (cloudinaryError) {
         console.error("Cloudinary upload error:", cloudinaryError);
 

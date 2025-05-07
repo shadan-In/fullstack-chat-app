@@ -85,16 +85,29 @@ const ChatContainer = () => {
                         }
                       }}
                       style={{ cursor: 'pointer' }}
-                      loading="lazy"
+                      onLoad={(e) => {
+                        // Remove loading attribute when image is loaded
+                        e.target.removeAttribute('loading');
+                        // Find and hide the loading indicator
+                        const loadingIndicator = e.target.nextElementSibling;
+                        if (loadingIndicator) {
+                          loadingIndicator.style.display = 'none';
+                        }
+                      }}
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = "https://placehold.co/200x200/e0e0e0/ff0000?text=Image+Error";
                         e.target.className = "max-w-[150px] rounded-md opacity-70";
                         e.target.title = "Image failed to load";
+                        // Hide loading indicator on error
+                        const loadingIndicator = e.target.nextElementSibling;
+                        if (loadingIndicator) {
+                          loadingIndicator.style.display = 'none';
+                        }
                       }}
                     />
                     {/* Loading indicator */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md image-loading-indicator">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
                       <div className="loading-spinner"></div>
                     </div>
                   </div>

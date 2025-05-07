@@ -18,78 +18,95 @@ const MessageInput = () => {
     // Check if file exists
     if (!file) return;
 
-    // Validate file type - accept all common image formats
-    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg', 'image/bmp', 'image/tiff', 'image/svg+xml'];
+    // Validate file type - focus on most reliable formats
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!validImageTypes.includes(file.type)) {
-      toast.error("Please select a valid image file (JPEG, PNG, GIF, JPG, BMP, TIFF, SVG, or WebP)");
+      toast.error("Please select a JPEG or PNG image for best compatibility");
       return;
     }
 
-    // Check file size (reduced to 5MB to ensure reliable uploads)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    // Check file size (reduced to 2MB for guaranteed uploads)
+    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
     if (file.size > maxSize) {
-      toast.error("Image size must be less than 5MB for reliable sharing");
+      toast.error("Image size must be less than 2MB for reliable sharing");
       return;
     }
 
     // Show loading toast for image processing
     const toastId = toast.loading("Processing image...");
 
-    // Use a more reliable method to process the image
+    // Use a simpler, more reliable method to process the image
     try {
-      // Create an image element to get dimensions
-      const img = new Image();
-      img.onload = () => {
-        // Create a canvas to resize the image if needed
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+      // Use FileReader directly for smaller images
+      const reader = new FileReader();
 
-        // Resize large images to reduce payload size
-        const maxDimension = 1200;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
+      reader.onload = (event) => {
+        // For very small images, use directly
+        if (file.size < 500 * 1024) { // Less than 500KB
+          setImagePreview(event.target.result);
+          toast.dismiss(toastId);
+          toast.success("Image ready to send");
+          return;
+        }
+
+        // For larger images, compress them
+        const img = new Image();
+
+        img.onload = () => {
+          // Create a canvas for compression
+          const canvas = document.createElement('canvas');
+
+          // Calculate new dimensions (max 1000px)
+          let width = img.width;
+          let height = img.height;
+          const maxDimension = 1000;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
           }
-        }
 
-        canvas.width = width;
-        canvas.height = height;
+          // Set canvas size
+          canvas.width = width;
+          canvas.height = height;
 
-        // Draw and compress the image
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+          // Draw image on canvas
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#FFFFFF'; // White background
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to base64 with reduced quality for JPG/JPEG
-        let quality = 0.8;
-        if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
-          quality = 0.7; // Lower quality for JPEGs to reduce size
-        }
+          // Convert to JPEG for better compression
+          const quality = 0.6; // Lower quality for better compression
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
 
-        // Get the compressed image data
-        const dataUrl = canvas.toDataURL(file.type, quality);
+          // Set the preview
+          setImagePreview(compressedDataUrl);
+          toast.dismiss(toastId);
+          toast.success("Image ready to send");
+        };
 
-        // Set the preview
-        setImagePreview(dataUrl);
-        toast.dismiss(toastId);
+        img.onerror = () => {
+          toast.dismiss(toastId);
+          toast.error("Error processing image");
+        };
 
-        // Log the compression results
-        const originalSize = file.size / (1024 * 1024);
-        const compressedSize = (dataUrl.length * 3) / 4 / (1024 * 1024);
-        console.log(`Image compressed: ${originalSize.toFixed(2)}MB → ${compressedSize.toFixed(2)}MB`);
+        img.src = event.target.result;
       };
 
-      img.onerror = () => {
+      reader.onerror = () => {
         toast.dismiss(toastId);
-        toast.error("Error processing image");
+        toast.error("Error reading image file");
       };
 
-      // Load the image from the file
-      img.src = URL.createObjectURL(file);
+      // Read the file
+      reader.readAsDataURL(file);
+
     } catch (error) {
       console.error("Error processing image:", error);
       toast.dismiss(toastId);
@@ -199,19 +216,67 @@ const MessageInput = () => {
         }
       }
 
+      // For image messages, add extra validation
+      if (imagePreview) {
+        // Check if the image data is valid
+        if (!imagePreview.startsWith('data:image/')) {
+          toast.error("Invalid image format");
+          if (toastId) toast.dismiss(toastId);
+          return;
+        }
+
+        // Check image size again before sending
+        const base64Length = imagePreview.length;
+        const sizeInBytes = (base64Length * 3) / 4;
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+
+        if (sizeInMB > 2) {
+          toast.error("Image is too large. Please select a smaller image.");
+          if (toastId) toast.dismiss(toastId);
+          return;
+        }
+
+        console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
+      }
+
       // Send the message with a timeout
-      const sendPromise = sendMessage({
-        text: text,  // Don't trim to preserve emojis at the beginning/end
-        image: imagePreview,
-      });
+      try {
+        // First attempt - with shorter timeout
+        const result = await Promise.race([
+          sendMessage({
+            text: text,  // Don't trim to preserve emojis at the beginning/end
+            image: imagePreview,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("First attempt timed out")), 15000)
+          )
+        ]);
 
-      // Set a timeout to handle hanging requests
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Request timed out")), 30000);
-      });
+        // If we get here, the message was sent successfully
+        return result;
+      } catch (firstError) {
+        // If it was just a timeout on first attempt, try again with text only
+        if (firstError.message === "First attempt timed out" && imagePreview) {
+          if (toastId) {
+            toast.dismiss(toastId);
+            toastId = toast.loading("Image upload taking longer than expected...");
+          }
 
-      // Race the promises to handle timeouts
-      await Promise.race([sendPromise, timeoutPromise]);
+          // Second attempt with longer timeout
+          return await Promise.race([
+            sendMessage({
+              text: text,
+              image: imagePreview,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Request timed out")), 30000)
+            )
+          ]);
+        } else {
+          // If it wasn't a timeout or was a text-only message, rethrow
+          throw firstError;
+        }
+      }
 
       // Clear form on success
       setText("");
