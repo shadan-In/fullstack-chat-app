@@ -28,8 +28,10 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     set({ isMessagesLoading: true });
     try {
-      // Use the new explicit endpoint with userId parameter
-      const res = await axiosInstance.get(`/messages/chat/${userId}`);
+      // Use query parameters instead of URL parameters
+      const res = await axiosInstance.get('/messages/chat', {
+        params: { userId }
+      });
       set({ messages: res.data });
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -41,8 +43,11 @@ export const useChatStore = create((set, get) => ({
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
     try {
-      // Use the new explicit endpoint with userId parameter
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      // Use query parameters instead of URL parameters
+      const res = await axiosInstance.post('/messages/send', {
+        ...messageData,
+        userId: selectedUser._id
+      });
       set({ messages: [...messages, res.data] });
     } catch (error) {
       console.error("Error sending message:", error);
