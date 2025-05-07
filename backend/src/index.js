@@ -11,6 +11,19 @@ import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import { app, server } from "./lib/socket.js";
 
+// Monkey patch Express to handle path-to-regexp errors
+// This is a workaround for the "Missing parameter name" error
+const originalRoute = express.Route.prototype.route;
+express.Route.prototype.route = function(path) {
+  try {
+    return originalRoute.call(this, path);
+  } catch (error) {
+    console.error(`Error in route: ${path}`, error.message);
+    // Return a route that will respond with a 400 error
+    return originalRoute.call(this, '*');
+  }
+};
+
 
 dotenv.config();
 

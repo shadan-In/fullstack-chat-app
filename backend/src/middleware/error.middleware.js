@@ -4,18 +4,26 @@
  */
 export const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
-  
+
   // Check for path-to-regexp errors
-  if (err.message && err.message.includes('Missing parameter name')) {
+  if (err.message && (
+    err.message.includes('Missing parameter name') ||
+    err.message.includes('pathToRegexpError') ||
+    err.message.includes('Expected')
+  )) {
+    console.log('Path-to-regexp error detected:', err.message);
+    console.log('URL that caused the error:', req.originalUrl);
+
     return res.status(400).json({
       error: 'Invalid URL format',
-      message: 'The URL contains invalid characters or format'
+      message: 'The URL contains invalid characters or format',
+      details: process.env.NODE_ENV === 'production' ? null : err.message
     });
   }
-  
+
   // Handle other types of errors
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  
+
   res.status(statusCode).json({
     message: err.message,
     stack: process.env.NODE_ENV === 'production' ? null : err.stack
