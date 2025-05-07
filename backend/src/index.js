@@ -1,3 +1,6 @@
+// Import the patch first to fix path-to-regexp before Express loads
+import './lib/patch-path-to-regexp.js';
+
 import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
