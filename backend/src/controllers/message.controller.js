@@ -87,17 +87,43 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "Invalid receiver ID format" });
     }
 
+    // Validate that at least text or image is provided
+    if (!text && !image) {
+      return res.status(400).json({ error: "Text or image is required" });
+    }
+
+    // Log the received text for debugging
+    console.log("Received message text:", text);
+
     const senderId = req.user._id;
 
     let imageUrl;
     if (image) {
       try {
-        // Upload base64 image to cloudinary
-        const uploadResponse = await cloudinary.uploader.upload(image);
+        // Check if the image data is too large (>10MB)
+        const base64Length = image.length;
+        const sizeInBytes = (base64Length * 3) / 4 - (image.endsWith('==') ? 2 : image.endsWith('=') ? 1 : 0);
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+
+        if (sizeInMB > 10) {
+          return res.status(400).json({ error: "Image size must be less than 10MB" });
+        }
+
+        // Upload to Cloudinary with optimization settings
+        const uploadResponse = await cloudinary.uploader.upload(image, {
+          folder: "chat_images",
+          resource_type: "image",
+          format: "auto", // Auto-detect best format
+          quality: "auto", // Auto-optimize quality
+          transformation: [
+            { width: 1200, crop: "limit" }, // Limit max width while maintaining aspect ratio
+          ],
+        });
+
         imageUrl = uploadResponse.secure_url;
       } catch (cloudinaryError) {
         console.error("Cloudinary upload error:", cloudinaryError);
-        return res.status(400).json({ error: "Error uploading image" });
+        return res.status(400).json({ error: "Error uploading image. Please try a different image or format." });
       }
     }
 

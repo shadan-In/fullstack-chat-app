@@ -14,14 +14,31 @@ const MessageInput = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+
+    // Check if file exists
+    if (!file) return;
+
+    // Validate file type
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
+    if (!validImageTypes.includes(file.type)) {
+      toast.error("Please select a valid image file (JPEG, PNG, GIF, or WebP)");
       return;
     }
 
+    // Check file size (limit to 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > maxSize) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    // Read and preview the image
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
+    };
+    reader.onerror = () => {
+      toast.error("Error reading file");
     };
     reader.readAsDataURL(file);
   };
@@ -33,8 +50,19 @@ const MessageInput = () => {
 
   // Handle emoji selection
   const handleEmojiClick = (emojiData) => {
-    setText((prevText) => prevText + emojiData.emoji);
-    setShowEmojiPicker(false);
+    // Log the emoji data to debug
+    console.log("Emoji selected:", emojiData);
+
+    // Add the emoji to the text at the current cursor position
+    setText((prevText) => {
+      const emoji = emojiData.emoji || "";
+      return prevText + emoji;
+    });
+
+    // Don't close the picker on mobile to allow multiple emoji selection
+    if (window.innerWidth >= 640) { // sm breakpoint
+      setShowEmojiPicker(false);
+    }
   };
 
   // Close emoji picker when clicking outside
@@ -56,6 +84,12 @@ const MessageInput = () => {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
 
+    // Show loading toast for image uploads
+    let toastId;
+    if (imagePreview) {
+      toastId = toast.loading("Sending image...");
+    }
+
     try {
       await sendMessage({
         text: text.trim(),
@@ -66,8 +100,25 @@ const MessageInput = () => {
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+
+      // Dismiss loading toast if it exists
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
+
+      // Show error toast
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
+
+      // Display specific error message if available
+      if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        toast.error("Failed to send message. Please try again.");
+      }
     }
   };
 
@@ -128,7 +179,7 @@ const MessageInput = () => {
 
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/jpg"
             className="hidden"
             ref={fileInputRef}
             onChange={handleImageChange}
@@ -155,7 +206,11 @@ const MessageInput = () => {
                   onEmojiClick={handleEmojiClick}
                   width={300}
                   height={400}
-                  previewConfig={{ showPreview: false }}
+                  previewConfig={{ showPreview: true }}
+                  searchDisabled={false}
+                  skinTonesDisabled={false}
+                  autoFocusSearch={false}
+                  emojiStyle="native"
                 />
               </div>
             )}
@@ -201,7 +256,11 @@ const MessageInput = () => {
             onEmojiClick={handleEmojiClick}
             width="100%"
             height={300}
-            previewConfig={{ showPreview: false }}
+            previewConfig={{ showPreview: true }}
+            searchDisabled={false}
+            skinTonesDisabled={false}
+            autoFocusSearch={false}
+            emojiStyle="native"
           />
         </div>
       )}

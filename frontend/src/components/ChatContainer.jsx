@@ -73,17 +73,28 @@ const ChatContainer = () => {
             </div>
             <div className="chat-bubble flex flex-col max-w-[75vw] sm:max-w-[60vw] md:max-w-[50vw] lg:max-w-[40vw]">
               {message.image && (
-                <img
-                  src={message.image}
-                  alt="Attachment"
-                  className="max-w-full sm:max-w-[200px] md:max-w-[250px] rounded-md mb-2"
-                  onClick={() => {
-                    if (message.image) {
-                      window.open(message.image, '_blank');
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                />
+                <div className="relative group">
+                  <img
+                    src={message.image}
+                    alt="Attachment"
+                    className="max-w-full sm:max-w-[200px] md:max-w-[250px] rounded-md mb-2 hover:opacity-95 transition-opacity"
+                    onClick={() => {
+                      if (message.image) {
+                        window.open(message.image, '_blank');
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/broken-image.png";
+                      e.target.className = "max-w-[100px] rounded-md mb-2 opacity-70";
+                      e.target.title = "Image failed to load";
+                    }}
+                  />
+                  <div className="absolute bottom-3 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    View
+                  </div>
+                </div>
               )}
               {message.text && (
                 <p className="break-words whitespace-pre-wrap text-base leading-relaxed">

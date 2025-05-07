@@ -14,6 +14,7 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
+      // No validation to ensure emojis can be stored
     },
     image: {
       type: String,

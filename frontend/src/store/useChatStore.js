@@ -43,15 +43,26 @@ export const useChatStore = create((set, get) => ({
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
     try {
-      // Use query parameters instead of URL parameters
-      const res = await axiosInstance.post('/messages/send', {
+      // Ensure text is properly encoded for emojis
+      const messageToSend = {
         ...messageData,
         userId: selectedUser._id
-      });
+      };
+
+      // Log the message being sent for debugging
+      console.log("Sending message:", messageToSend);
+
+      // Use query parameters instead of URL parameters
+      const res = await axiosInstance.post('/messages/send', messageToSend);
+
+      // Log the response for debugging
+      console.log("Message sent response:", res.data);
+
       set({ messages: [...messages, res.data] });
     } catch (error) {
       console.error("Error sending message:", error);
-      toast.error(error.response?.data?.message || "Error sending message");
+      toast.error(error.response?.data?.error || error.response?.data?.message || "Error sending message");
+      throw error; // Re-throw to allow the component to handle it
     }
   },
 
