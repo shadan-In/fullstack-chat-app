@@ -112,57 +112,73 @@ export const sendMessage = async (req, res) => {
     let imageUrl;
     if (image) {
       try {
-        // Check if the image data is too large (>25MB)
+        // Check if the image data is valid base64
+        if (!image.includes('base64')) {
+          return res.status(400).json({ error: "Invalid image data format" });
+        }
+
+        // Check if the image data is too large
         const base64Length = image.length;
         const sizeInBytes = (base64Length * 3) / 4 - (image.endsWith('==') ? 2 : image.endsWith('=') ? 1 : 0);
         const sizeInMB = sizeInBytes / (1024 * 1024);
 
-        console.log("Image size in MB:", sizeInMB);
+        console.log("Image size in MB:", sizeInMB.toFixed(2));
 
-        if (sizeInMB > 25) {
-          return res.status(400).json({ error: "Image size must be less than 25MB" });
+        // Limit image size to 8MB for reliability
+        if (sizeInMB > 8) {
+          return res.status(400).json({ error: "Image size must be less than 8MB. Please compress the image." });
         }
 
-        // Determine if we need to use eager transformations for large images
+        // Set up Cloudinary upload options with better reliability
         const uploadOptions = {
           folder: "chat_images",
-          resource_type: "auto", // Auto-detect resource type (image, video, etc.)
+          resource_type: "image", // Explicitly set as image
           format: "auto", // Auto-detect best format
           quality: "auto", // Auto-optimize quality
+          timeout: 60000, // 60 second timeout
         };
 
-        // For larger images, add more aggressive optimization
-        if (sizeInMB > 5) {
+        // Add optimization based on image size
+        if (sizeInMB > 2) {
           uploadOptions.transformation = [
-            { width: 1800, crop: "limit" }, // Limit max width while maintaining aspect ratio
-            { quality: "auto:good" }, // Use good quality for large images
+            { width: 1200, height: 1200, crop: "limit" }, // Limit dimensions
+            { quality: 80 }, // Fixed quality for better reliability
           ];
         } else {
           uploadOptions.transformation = [
-            { width: 2000, crop: "limit" }, // Limit max width while maintaining aspect ratio
-            { quality: "auto:best" }, // Use best quality for smaller images
+            { width: 1600, height: 1600, crop: "limit" }, // Limit dimensions
+            { quality: "auto:good" }, // Auto quality for smaller images
           ];
         }
 
-        console.log("Uploading image to Cloudinary with options:", uploadOptions);
+        console.log("Uploading image to Cloudinary...");
 
-        // Upload to Cloudinary with optimization settings
-        const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
+        // Upload to Cloudinary with optimization settings and proper error handling
+        const uploadResponse = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload(image, uploadOptions, (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error:", error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          });
+        });
 
-        console.log("Cloudinary upload successful:", uploadResponse.secure_url);
-
+        console.log("Cloudinary upload successful");
         imageUrl = uploadResponse.secure_url;
       } catch (cloudinaryError) {
         console.error("Cloudinary upload error:", cloudinaryError);
-        console.error("Error details:", cloudinaryError.message);
 
         // Provide more specific error messages based on the error
         if (cloudinaryError.message && cloudinaryError.message.includes("Invalid image file")) {
-          return res.status(400).json({ error: "Invalid image file. Please try a different image format." });
+          return res.status(400).json({ error: "Invalid image format. Please try a different image." });
         } else if (cloudinaryError.message && cloudinaryError.message.includes("timeout")) {
           return res.status(400).json({ error: "Upload timed out. Please try a smaller image." });
+        } else if (cloudinaryError.http_code === 413) {
+          return res.status(400).json({ error: "Image is too large. Please use a smaller image." });
         } else {
-          return res.status(400).json({ error: "Error uploading image. Please try a different image or format." });
+          return res.status(400).json({ error: "Error uploading image. Please try again with a different image." });
         }
       }
     }

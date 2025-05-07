@@ -25,34 +25,76 @@ const MessageInput = () => {
       return;
     }
 
-    // Check file size (increased to 20MB)
-    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+    // Check file size (reduced to 5MB to ensure reliable uploads)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
-      toast.error("Image size must be less than 20MB");
+      toast.error("Image size must be less than 5MB for reliable sharing");
       return;
     }
 
-    // Show loading toast for large images
-    let toastId;
-    if (file.size > 5 * 1024 * 1024) { // 5MB
-      toastId = toast.loading("Processing large image...");
-    }
+    // Show loading toast for image processing
+    const toastId = toast.loading("Processing image...");
 
-    // Read and preview the image
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-      if (toastId) {
+    // Use a more reliable method to process the image
+    try {
+      // Create an image element to get dimensions
+      const img = new Image();
+      img.onload = () => {
+        // Create a canvas to resize the image if needed
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Resize large images to reduce payload size
+        const maxDimension = 1200;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress the image
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to base64 with reduced quality for JPG/JPEG
+        let quality = 0.8;
+        if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+          quality = 0.7; // Lower quality for JPEGs to reduce size
+        }
+
+        // Get the compressed image data
+        const dataUrl = canvas.toDataURL(file.type, quality);
+
+        // Set the preview
+        setImagePreview(dataUrl);
         toast.dismiss(toastId);
-      }
-    };
-    reader.onerror = () => {
-      if (toastId) {
+
+        // Log the compression results
+        const originalSize = file.size / (1024 * 1024);
+        const compressedSize = (dataUrl.length * 3) / 4 / (1024 * 1024);
+        console.log(`Image compressed: ${originalSize.toFixed(2)}MB → ${compressedSize.toFixed(2)}MB`);
+      };
+
+      img.onerror = () => {
         toast.dismiss(toastId);
-      }
-      toast.error("Error reading file");
-    };
-    reader.readAsDataURL(file);
+        toast.error("Error processing image");
+      };
+
+      // Load the image from the file
+      img.src = URL.createObjectURL(file);
+    } catch (error) {
+      console.error("Error processing image:", error);
+      toast.dismiss(toastId);
+      toast.error("Error processing image");
+    }
   };
 
   const removeImage = () => {
@@ -124,46 +166,59 @@ const MessageInput = () => {
 
     // Show loading toast for image uploads with appropriate message
     let toastId;
-    if (imagePreview) {
-      // Estimate image size
-      const base64Length = imagePreview.length;
-      const sizeInBytes = (base64Length * 3) / 4 - (imagePreview.endsWith('==') ? 2 : imagePreview.endsWith('=') ? 1 : 0);
-      const sizeInMB = sizeInBytes / (1024 * 1024);
 
-      // Show different messages based on image size
-      if (sizeInMB > 10) {
-        toastId = toast.loading("Uploading large image... This may take a moment");
-      } else if (sizeInMB > 5) {
-        toastId = toast.loading("Uploading image...");
-      } else {
+    try {
+      if (imagePreview) {
+        // Estimate image size
+        const base64Length = imagePreview.length;
+        const sizeInBytes = (base64Length * 3) / 4 - (imagePreview.endsWith('==') ? 2 : imagePreview.endsWith('=') ? 1 : 0);
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+
+        // Check if image is too large before attempting to send
+        if (sizeInMB > 5) {
+          toast.error("Image is too large (over 5MB). Please select a smaller image.");
+          return;
+        }
+
+        // Show loading toast for image upload
+        toastId = toast.loading("Sending image...");
+        console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
+      } else if (text) {
+        // Just text message
         toastId = toast.loading("Sending message...");
       }
 
-      console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
-    }
-
-    try {
       // Log the text being sent for debugging
-      console.log("Sending text message:", text);
+      if (text) {
+        console.log("Sending text message");
 
-      // Check if text contains emojis and log them
-      const hasEmojis = /\p{Emoji}/u.test(text);
-      if (hasEmojis) {
-        console.log("Message contains emojis");
+        // Check if text contains emojis
+        const hasEmojis = /\p{Emoji}/u.test(text);
+        if (hasEmojis) {
+          console.log("Message contains emojis");
+        }
       }
 
-      // Send the message
-      await sendMessage({
+      // Send the message with a timeout
+      const sendPromise = sendMessage({
         text: text,  // Don't trim to preserve emojis at the beginning/end
         image: imagePreview,
       });
 
-      // Clear form
+      // Set a timeout to handle hanging requests
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out")), 30000);
+      });
+
+      // Race the promises to handle timeouts
+      await Promise.race([sendPromise, timeoutPromise]);
+
+      // Clear form on success
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      // Dismiss loading toast if it exists
+      // Dismiss loading toast and show success
       if (toastId) {
         toast.dismiss(toastId);
         toast.success("Message sent successfully");
@@ -171,16 +226,20 @@ const MessageInput = () => {
     } catch (error) {
       console.error("Failed to send message:", error);
 
-      // Show error toast
+      // Dismiss loading toast
       if (toastId) {
         toast.dismiss(toastId);
       }
 
-      // Display specific error message if available
-      if (error.response?.data?.error) {
+      // Display specific error message based on the error type
+      if (error.message === "Request timed out") {
+        toast.error("Request timed out. The server took too long to respond.");
+      } else if (error.response?.data?.error) {
         toast.error(error.response.data.error);
-      } else if (imagePreview && imagePreview.length > 1000000) { // If it's a large image
-        toast.error("Failed to send large image. Try reducing the image size or using a different format.");
+      } else if (error.code === "ERR_NETWORK") {
+        toast.error("Network error. Please check your connection and try again.");
+      } else if (imagePreview) {
+        toast.error("Failed to send image. Try using a smaller image or different format.");
       } else {
         toast.error("Failed to send message. Please try again.");
       }
