@@ -3,7 +3,8 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
-const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
+// Configure Socket.io URL based on environment
+const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : window.location.origin;
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -86,18 +87,44 @@ export const useAuthStore = create((set, get) => ({
     const { authUser } = get();
     if (!authUser || get().socket?.connected) return;
 
-    const socket = io(BASE_URL, {
-      query: {
-        userId: authUser._id,
-      },
-    });
-    socket.connect();
+    try {
+      // Configure Socket.io with proper options for production
+      const socket = io(BASE_URL, {
+        query: {
+          userId: authUser._id,
+        },
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        path: '/socket.io/',
+        withCredentials: true,
+        autoConnect: false,
+        forceNew: true
+      });
 
-    set({ socket: socket });
+      // Add error handling before connecting
+      socket.on("connect_error", (err) => {
+        console.error("Socket connection error:", err.message);
+        // Don't retry on auth errors
+        if (err.message === "Authentication error") {
+          socket.disconnect();
+        }
+      });
 
-    socket.on("getOnlineUsers", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
+      socket.on("error", (error) => {
+        console.error("Socket error:", error);
+      });
+
+      socket.on("getOnlineUsers", (userIds) => {
+        set({ onlineUsers: userIds });
+      });
+
+      // Connect after setting up event handlers
+      socket.connect();
+      set({ socket: socket });
+    } catch (error) {
+      console.error("Error connecting to socket:", error);
+    }
   },
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();

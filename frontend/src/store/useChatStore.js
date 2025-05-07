@@ -6,9 +6,12 @@ import { useAuthStore } from "./useAuthStore";
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
+  searchResults: [],
   selectedUser: null,
   isUsersLoading: false,
   isMessagesLoading: false,
+  isSearching: false,
+  searchQuery: "",
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -25,10 +28,12 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/${userId}`);
+      // Use axios params object instead of URL template literals
+      const res = await axiosInstance.get('/messages/' + userId);
       set({ messages: res.data });
     } catch (error) {
-      toast.error(error.response.data.message);
+      console.error("Error fetching messages:", error);
+      toast.error(error.response?.data?.message || "Error loading messages");
     } finally {
       set({ isMessagesLoading: false });
     }
@@ -36,10 +41,12 @@ export const useChatStore = create((set, get) => ({
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      // Use a simpler URL pattern to avoid path-to-regexp issues
+      const res = await axiosInstance.post('/messages/send/' + selectedUser._id, messageData);
       set({ messages: [...messages, res.data] });
     } catch (error) {
-      toast.error(error.response.data.message);
+      console.error("Error sending message:", error);
+      toast.error(error.response?.data?.message || "Error sending message");
     }
   },
 
@@ -65,5 +72,35 @@ export const useChatStore = create((set, get) => ({
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
-  
+
+  searchUsers: async (searchQuery) => {
+    if (!searchQuery || !searchQuery.trim()) {
+      set({ searchResults: [], searchQuery: "", isSearching: false });
+      return;
+    }
+
+    set({ isSearching: true, searchQuery });
+    try {
+      // Create a safe query parameter
+      const params = new URLSearchParams();
+      params.append('query', searchQuery);
+
+      // Make the API request with the safe query string
+      const res = await axiosInstance.get('/messages/search', {
+        params: { query: searchQuery }
+      });
+
+      set({ searchResults: res.data });
+    } catch (error) {
+      console.error("Search error:", error);
+      toast.error(error.response?.data?.error || "Error searching users");
+      set({ searchResults: [] });
+    } finally {
+      set({ isSearching: false });
+    }
+  },
+
+  clearSearch: () => {
+    set({ searchResults: [], searchQuery: "", isSearching: false });
+  }
 }));
