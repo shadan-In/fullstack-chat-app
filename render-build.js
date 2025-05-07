@@ -19,28 +19,47 @@ execSync('npm install --prefix frontend', { stdio: 'inherit' });
 console.log('Building frontend...');
 execSync('npm run build --prefix frontend', { stdio: 'inherit' });
 
+// Copy frontend files to a location that the backend can find
+console.log('Copying frontend files to backend/frontend/dist...');
+const frontendDistPath = path.join(__dirname, 'frontend', 'dist');
+const backendFrontendPath = path.join(__dirname, 'backend', 'frontend', 'dist');
+
+// Create the directory if it doesn't exist
+if (!fs.existsSync(path.dirname(backendFrontendPath))) {
+  fs.mkdirSync(path.dirname(backendFrontendPath), { recursive: true });
+}
+
+// Copy the files
+if (fs.existsSync(frontendDistPath)) {
+  // Copy the entire directory
+  fs.cpSync(frontendDistPath, backendFrontendPath, { recursive: true });
+  console.log('Frontend files copied successfully');
+} else {
+  console.error('Frontend dist directory not found at:', frontendDistPath);
+}
+
 // Now patch the path-to-regexp library
 try {
   console.log('Patching path-to-regexp library...');
-  
+
   // Find the path-to-regexp module
   const nodeModulesPath = path.join(__dirname, 'backend', 'node_modules');
   const pathToRegexpPath = path.join(nodeModulesPath, 'path-to-regexp', 'dist', 'index.js');
-  
+
   if (fs.existsSync(pathToRegexpPath)) {
     // Read the file content
     const content = fs.readFileSync(pathToRegexpPath, 'utf8');
-    
+
     // Check if the file contains the error message we want to patch
     if (content.includes('Missing parameter name at')) {
       console.log('Found path-to-regexp library, applying patch...');
-      
+
       // Create a patched version that catches the error
       const patchedContent = content.replace(
         /throw new TypeError\(`Missing parameter name at \${i}: \${DEBUG_URL}`\);/g,
         'console.warn(`Warning: Missing parameter name at ${i}: ${DEBUG_URL}`); return "";'
       );
-      
+
       // Write the patched file back
       fs.writeFileSync(pathToRegexpPath, patchedContent, 'utf8');
       console.log('Successfully patched path-to-regexp library');
