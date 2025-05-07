@@ -119,46 +119,39 @@ const MessageInput = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Handle emoji selection
+  // Handle emoji selection - simplified for maximum reliability
   const handleEmojiClick = (emojiObject) => {
     // Log the emoji data to debug
     console.log("Emoji selected:", emojiObject);
 
     try {
-      // Make sure we have a valid emoji object
-      if (!emojiObject || typeof emojiObject !== 'object') {
-        console.error("Invalid emoji object received:", emojiObject);
-        return;
-      }
+      // Simple direct access to emoji property
+      if (emojiObject && emojiObject.emoji) {
+        // Get the emoji character directly
+        const emoji = emojiObject.emoji;
 
-      // Get the emoji character - try different properties based on library version
-      const emoji = emojiObject.emoji ||
-                   (emojiObject.unified && String.fromCodePoint(parseInt(emojiObject.unified.split('-')[0], 16))) ||
-                   "";
+        console.log("Adding emoji to text:", emoji);
 
-      if (!emoji) {
-        console.error("Could not extract emoji from object:", emojiObject);
-        return;
-      }
+        // Add the emoji to the text
+        setText((prevText) => prevText + emoji);
 
-      console.log("Adding emoji to text:", emoji);
+        // Don't show toast on mobile to avoid UI clutter
+        if (window.innerWidth >= 640) {
+          toast.success("Emoji added", {
+            duration: 800,
+            position: "bottom-center",
+          });
+        }
 
-      // Add the emoji to the text
-      setText((prevText) => prevText + emoji);
-
-      // Show a toast to confirm emoji was selected
-      toast.success("Emoji added! 👍", {
-        duration: 1000,
-        position: "bottom-center",
-      });
-
-      // Don't close the picker on mobile to allow multiple emoji selection
-      if (window.innerWidth >= 640) { // sm breakpoint
-        setShowEmojiPicker(false);
+        // Don't close the picker on mobile to allow multiple emoji selection
+        if (window.innerWidth >= 640) { // sm breakpoint
+          setShowEmojiPicker(false);
+        }
+      } else {
+        console.error("Invalid emoji object:", emojiObject);
       }
     } catch (error) {
       console.error("Error handling emoji selection:", error);
-      toast.error("Failed to add emoji");
     }
   };
 
@@ -179,132 +172,77 @@ const MessageInput = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!text.trim() && !imagePreview) return;
 
-    // Show loading toast for image uploads with appropriate message
-    let toastId;
+    // Basic validation - need either text or image
+    if (!text && !imagePreview) return;
+
+    // Show loading toast
+    let toastId = toast.loading("Sending message...");
 
     try {
-      if (imagePreview) {
-        // Estimate image size
-        const base64Length = imagePreview.length;
-        const sizeInBytes = (base64Length * 3) / 4 - (imagePreview.endsWith('==') ? 2 : imagePreview.endsWith('=') ? 1 : 0);
-        const sizeInMB = sizeInBytes / (1024 * 1024);
+      // Prepare message data
+      let messageData = {};
 
-        // Check if image is too large before attempting to send
-        if (sizeInMB > 5) {
-          toast.error("Image is too large (over 5MB). Please select a smaller image.");
-          return;
-        }
-
-        // Show loading toast for image upload
-        toastId = toast.loading("Sending image...");
-        console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
-      } else if (text) {
-        // Just text message
-        toastId = toast.loading("Sending message...");
-      }
-
-      // Log the text being sent for debugging
+      // Handle text messages
       if (text) {
-        console.log("Sending text message");
-
-        // Check if text contains emojis
-        const hasEmojis = /\p{Emoji}/u.test(text);
-        if (hasEmojis) {
-          console.log("Message contains emojis");
-        }
+        // Keep text as is, don't trim to preserve emojis
+        messageData.text = text;
+        console.log("Sending text message:", text.length, "characters");
       }
 
-      // For image messages, add extra validation
+      // Handle image messages
       if (imagePreview) {
-        // Check if the image data is valid
+        // Basic image validation
         if (!imagePreview.startsWith('data:image/')) {
+          toast.dismiss(toastId);
           toast.error("Invalid image format");
-          if (toastId) toast.dismiss(toastId);
           return;
         }
 
-        // Check image size again before sending
+        // Check image size
         const base64Length = imagePreview.length;
         const sizeInBytes = (base64Length * 3) / 4;
         const sizeInMB = sizeInBytes / (1024 * 1024);
 
         if (sizeInMB > 2) {
-          toast.error("Image is too large. Please select a smaller image.");
-          if (toastId) toast.dismiss(toastId);
+          toast.dismiss(toastId);
+          toast.error("Image is too large. Please select a smaller image (under 2MB).");
           return;
         }
 
-        console.log("Sending image of size:", sizeInMB.toFixed(2) + "MB");
+        // Add image to message data
+        messageData.image = imagePreview;
+        console.log("Including image of size:", sizeInMB.toFixed(2) + "MB");
       }
 
-      // Send the message with a timeout
-      try {
-        // First attempt - with shorter timeout
-        const result = await Promise.race([
-          sendMessage({
-            text: text,  // Don't trim to preserve emojis at the beginning/end
-            image: imagePreview,
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("First attempt timed out")), 15000)
-          )
-        ]);
+      // Simple direct send with no race conditions or timeouts
+      const response = await sendMessage(messageData);
 
-        // If we get here, the message was sent successfully
-        return result;
-      } catch (firstError) {
-        // If it was just a timeout on first attempt, try again with text only
-        if (firstError.message === "First attempt timed out" && imagePreview) {
-          if (toastId) {
-            toast.dismiss(toastId);
-            toastId = toast.loading("Image upload taking longer than expected...");
-          }
+      // Message sent successfully
+      console.log("Message sent successfully:", response);
 
-          // Second attempt with longer timeout
-          return await Promise.race([
-            sendMessage({
-              text: text,
-              image: imagePreview,
-            }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Request timed out")), 30000)
-            )
-          ]);
-        } else {
-          // If it wasn't a timeout or was a text-only message, rethrow
-          throw firstError;
-        }
-      }
-
-      // Clear form on success
+      // Clear form
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      // Dismiss loading toast and show success
-      if (toastId) {
-        toast.dismiss(toastId);
-        toast.success("Message sent successfully");
-      }
+      // Show success message
+      toast.dismiss(toastId);
+      toast.success("Message sent successfully");
+
     } catch (error) {
       console.error("Failed to send message:", error);
 
       // Dismiss loading toast
-      if (toastId) {
-        toast.dismiss(toastId);
-      }
+      toast.dismiss(toastId);
 
-      // Display specific error message based on the error type
-      if (error.message === "Request timed out") {
-        toast.error("Request timed out. The server took too long to respond.");
-      } else if (error.response?.data?.error) {
+      // Show appropriate error message
+      if (error.response?.data?.error) {
         toast.error(error.response.data.error);
       } else if (error.code === "ERR_NETWORK") {
-        toast.error("Network error. Please check your connection and try again.");
-      } else if (imagePreview) {
-        toast.error("Failed to send image. Try using a smaller image or different format.");
+        toast.error("Network error. Please check your connection.");
+      } else if (error.message && error.message.includes("timeout")) {
+        toast.error("Request timed out. Please try again.");
       } else {
         toast.error("Failed to send message. Please try again.");
       }
@@ -395,13 +333,14 @@ const MessageInput = () => {
                   onEmojiClick={handleEmojiClick}
                   width={300}
                   height={400}
-                  previewConfig={{ showPreview: true }}
-                  searchDisabled={false}
-                  skinTonesDisabled={false}
+                  previewConfig={{ showPreview: false }}
+                  searchDisabled={true}
+                  skinTonesDisabled={true}
                   autoFocusSearch={false}
-                  emojiStyle="apple"
+                  emojiStyle="native"
                   lazyLoadEmojis={false}
                   theme="light"
+                  categories={['smileys_people', 'animals_nature', 'food_drink', 'travel_places', 'activities', 'objects', 'symbols', 'flags']}
                 />
               </div>
             )}
@@ -447,13 +386,14 @@ const MessageInput = () => {
             onEmojiClick={handleEmojiClick}
             width="100%"
             height={300}
-            previewConfig={{ showPreview: true }}
-            searchDisabled={false}
-            skinTonesDisabled={false}
+            previewConfig={{ showPreview: false }}
+            searchDisabled={true}
+            skinTonesDisabled={true}
             autoFocusSearch={false}
-            emojiStyle="apple"
+            emojiStyle="native"
             lazyLoadEmojis={false}
             theme="light"
+            categories={['smileys_people', 'animals_nature', 'food_drink', 'travel_places', 'activities', 'objects', 'symbols', 'flags']}
           />
         </div>
       )}
