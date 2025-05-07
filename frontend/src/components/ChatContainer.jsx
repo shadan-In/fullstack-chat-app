@@ -85,7 +85,11 @@ const ChatContainer = () => {
                   style={{ cursor: 'pointer' }}
                 />
               )}
-              {message.text && <p className="break-words">{message.text}</p>}
+              {message.text && (
+                <p className="break-words whitespace-pre-wrap text-base leading-relaxed">
+                  {message.text}
+                </p>
+              )}
             </div>
           </div>
         ))}

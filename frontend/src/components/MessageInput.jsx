@@ -1,12 +1,15 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { Image, Send, X } from "lucide-react";
+import { Image, Send, X, Smile } from "lucide-react";
 import toast from "react-hot-toast";
+import EmojiPicker from "emoji-picker-react";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
   const { sendMessage } = useChatStore();
 
   const handleImageChange = (e) => {
@@ -27,6 +30,27 @@ const MessageInput = () => {
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  // Handle emoji selection
+  const handleEmojiClick = (emojiData) => {
+    setText((prevText) => prevText + emojiData.emoji);
+    setShowEmojiPicker(false);
+  };
+
+  // Close emoji picker when clicking outside
+  const handleClickOutside = (e) => {
+    if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+      setShowEmojiPicker(false);
+    }
+  };
+
+  // Add event listener for clicking outside
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -80,15 +104,26 @@ const MessageInput = () => {
               onChange={(e) => setText(e.target.value)}
             />
 
-            {/* Mobile image upload button (inside input) */}
-            <button
-              type="button"
-              className={`sm:hidden absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle
+            {/* Mobile buttons (inside input) */}
+            <div className="sm:hidden absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle text-zinc-400"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                aria-label="Add emoji"
+              >
+                <Smile size={16} />
+              </button>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-xs btn-circle
                        ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Image size={16} />
-            </button>
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Add image"
+              >
+                <Image size={16} />
+              </button>
+            </div>
           </div>
 
           <input
@@ -99,12 +134,40 @@ const MessageInput = () => {
             onChange={handleImageChange}
           />
 
+          {/* Desktop emoji button */}
+          <div className="relative hidden sm:block">
+            <button
+              type="button"
+              className="btn btn-circle"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              aria-label="Add emoji"
+            >
+              <Smile size={20} />
+            </button>
+
+            {/* Emoji picker */}
+            {showEmojiPicker && (
+              <div
+                className="absolute bottom-16 right-0 z-10"
+                ref={emojiPickerRef}
+              >
+                <EmojiPicker
+                  onEmojiClick={handleEmojiClick}
+                  width={300}
+                  height={400}
+                  previewConfig={{ showPreview: false }}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Desktop image upload button */}
           <button
             type="button"
             className={`hidden sm:flex btn btn-circle
                      ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
             onClick={() => fileInputRef.current?.click()}
+            aria-label="Add image"
           >
             <Image size={20} />
           </button>
@@ -113,10 +176,35 @@ const MessageInput = () => {
           type="submit"
           className="btn btn-sm sm:btn-md btn-circle"
           disabled={!text.trim() && !imagePreview}
+          aria-label="Send message"
         >
           <Send size={18} className="sm:size-22" />
         </button>
       </form>
+
+      {/* Mobile emoji picker (full width) */}
+      {showEmojiPicker && (
+        <div
+          className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-base-100 border-t border-base-300"
+          ref={emojiPickerRef}
+        >
+          <div className="flex justify-between items-center p-2 border-b border-base-300">
+            <h3 className="font-medium">Emojis</h3>
+            <button
+              className="btn btn-sm btn-circle"
+              onClick={() => setShowEmojiPicker(false)}
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            width="100%"
+            height={300}
+            previewConfig={{ showPreview: false }}
+          />
+        </div>
+      )}
     </div>
   );
 };
