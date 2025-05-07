@@ -58,14 +58,93 @@ const Sidebar = () => {
   if (isUsersLoading) return <SidebarSkeleton />;
 
   return (
-    <aside className="h-full w-20 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
-      <div className="border-b border-base-300 w-full p-5">
+    <aside className="h-full w-16 sm:w-20 md:w-24 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
+      <div className="border-b border-base-300 w-full p-3 sm:p-5">
         <div className="flex items-center gap-2">
-          <Users className="size-6" />
+          <Users className="size-5 sm:size-6" />
           <span className="font-medium hidden lg:block">Contacts</span>
         </div>
 
-        {/* Search bar */}
+        {/* Mobile search button */}
+        <div className="mt-3 lg:hidden flex justify-center">
+          <button
+            onClick={() => document.getElementById('mobile-search-modal').showModal()}
+            className="btn btn-sm btn-circle"
+          >
+            <Search size={16} />
+          </button>
+        </div>
+
+        {/* Mobile search modal */}
+        <dialog id="mobile-search-modal" className="modal modal-bottom sm:modal-middle">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">Search Users</h3>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchInputValue}
+                onChange={handleSearchChange}
+                className="input input-bordered w-full pr-8"
+                autoFocus
+              />
+              {searchInputValue ? (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  <X size={16} />
+                </button>
+              ) : (
+                <Search size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+              )}
+            </div>
+            {isSearching && (
+              <div className="text-sm text-center mt-2 text-gray-500">Searching...</div>
+            )}
+            {searchQuery && (
+              <div className="mt-4 max-h-60 overflow-y-auto">
+                {searchResults.length === 0 ? (
+                  <div className="text-center text-zinc-500 py-2">No users found</div>
+                ) : (
+                  searchResults.map((user) => (
+                    <button
+                      key={user._id}
+                      onClick={() => {
+                        setSelectedUser(user);
+                        document.getElementById('mobile-search-modal').close();
+                        handleClearSearch();
+                      }}
+                      className="w-full p-2 flex items-center gap-3 hover:bg-base-200 rounded-lg"
+                    >
+                      <img
+                        src={user.profilePic || "/avatar.png"}
+                        alt={user.name}
+                        className="size-10 object-cover rounded-full"
+                      />
+                      <div className="text-left">
+                        <div className="font-medium">{user.fullName}</div>
+                        <div className="text-sm text-zinc-400">
+                          {onlineUsers.includes(user._id) ? "Online" : "Offline"}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            <div className="modal-action">
+              <form method="dialog">
+                <button className="btn">Close</button>
+              </form>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button>close</button>
+          </form>
+        </dialog>
+
+        {/* Desktop search bar */}
         <div className="mt-3 relative hidden lg:block">
           <div className="relative">
             <input
@@ -107,7 +186,7 @@ const Sidebar = () => {
         </div>
       </div>
 
-      <div className="overflow-y-auto w-full py-3">
+      <div className="overflow-y-auto w-full py-2 sm:py-3">
         {searchQuery && displayUsers.length === 0 && !isSearching && (
           <div className="text-center text-zinc-500 py-4">No users found</div>
         )}
@@ -117,7 +196,7 @@ const Sidebar = () => {
             key={user._id}
             onClick={() => setSelectedUser(user)}
             className={`
-              w-full p-3 flex items-center gap-3
+              w-full p-2 sm:p-3 flex items-center gap-2 sm:gap-3
               hover:bg-base-300 transition-colors
               ${selectedUser?._id === user._id ? "bg-base-300 ring-1 ring-base-300" : ""}
             `}
@@ -126,11 +205,11 @@ const Sidebar = () => {
               <img
                 src={user.profilePic || "/avatar.png"}
                 alt={user.name}
-                className="size-12 object-cover rounded-full"
+                className="size-10 sm:size-12 object-cover rounded-full"
               />
               {onlineUsers.includes(user._id) && (
                 <span
-                  className="absolute bottom-0 right-0 size-3 bg-green-500
+                  className="absolute bottom-0 right-0 size-2 sm:size-3 bg-green-500
                   rounded-full ring-2 ring-zinc-900"
                 />
               )}

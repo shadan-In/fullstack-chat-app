@@ -47,15 +47,15 @@ const ChatContainer = () => {
     <div className="flex-1 flex flex-col overflow-auto">
       <ChatHeader />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+      <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
+        {messages.map((message, index) => (
           <div
             key={message._id}
             className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"}`}
-            ref={messageEndRef}
+            ref={index === messages.length - 1 ? messageEndRef : null}
           >
-            <div className=" chat-image avatar">
-              <div className="size-10 rounded-full border">
+            <div className="chat-image avatar">
+              <div className="size-8 sm:size-10 rounded-full border">
                 <img
                   src={
                     message.senderId === authUser._id
@@ -71,18 +71,32 @@ const ChatContainer = () => {
                 {formatMessageTime(message.createdAt)}
               </time>
             </div>
-            <div className="chat-bubble flex flex-col">
+            <div className="chat-bubble flex flex-col max-w-[75vw] sm:max-w-[60vw] md:max-w-[50vw] lg:max-w-[40vw]">
               {message.image && (
                 <img
                   src={message.image}
                   alt="Attachment"
-                  className="sm:max-w-[200px] rounded-md mb-2"
+                  className="max-w-full sm:max-w-[200px] md:max-w-[250px] rounded-md mb-2"
+                  onClick={() => {
+                    if (message.image) {
+                      window.open(message.image, '_blank');
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
                 />
               )}
-              {message.text && <p>{message.text}</p>}
+              {message.text && <p className="break-words">{message.text}</p>}
             </div>
           </div>
         ))}
+        {messages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-zinc-500">
+              <p>No messages yet</p>
+              <p className="text-sm mt-1">Send a message to start the conversation</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <MessageInput />
