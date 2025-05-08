@@ -79,6 +79,10 @@ export const useChatStore = create((set, get) => ({
 
       // Update messages in state
       set({ messages: [...messages, res.data] });
+
+      // Refresh the user list to update the order (move this user to top)
+      get().getUsers();
+
       return res.data;
     } catch (error) {
       console.error("Error sending message:", error);
@@ -95,12 +99,19 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
 
     socket.on("newMessage", (newMessage) => {
+      // Check if this message is from the currently selected user
       const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
 
-      set({
-        messages: [...get().messages, newMessage],
-      });
+      // If it's from the selected user, add it to the messages
+      if (isMessageSentFromSelectedUser) {
+        set({
+          messages: [...get().messages, newMessage],
+        });
+      }
+
+      // Refresh the user list to update the order regardless of who sent the message
+      // This ensures the user with the latest message is at the top
+      get().getUsers();
     });
   },
 

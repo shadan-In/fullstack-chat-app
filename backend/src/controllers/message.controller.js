@@ -8,9 +8,40 @@ import { getReceiverSocketId, io } from "../lib/socket.js";
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
 
-    res.status(200).json(filteredUsers);
+    // Get all users except the logged in user
+    const users = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+
+    // Get the latest message for each user
+    const usersWithLatestMessage = await Promise.all(
+      users.map(async (user) => {
+        // Find the latest message between the logged in user and this user
+        const latestMessage = await Message.findOne({
+          $or: [
+            { senderId: loggedInUserId, receiverId: user._id },
+            { senderId: user._id, receiverId: loggedInUserId },
+          ],
+        }).sort({ createdAt: -1 });
+
+        // Convert Mongoose document to plain object
+        const userObj = user.toObject();
+
+        // Add latest message timestamp
+        return {
+          ...userObj,
+          lastMessageAt: latestMessage ? latestMessage.createdAt : null,
+        };
+      })
+    );
+
+    // Sort users by latest message time (most recent first)
+    const sortedUsers = usersWithLatestMessage.sort((a, b) => {
+      if (!a.lastMessageAt) return 1;
+      if (!b.lastMessageAt) return -1;
+      return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    });
+
+    res.status(200).json(sortedUsers);
   } catch (error) {
     console.error("Error in getUsersForSidebar: ", error.message);
     res.status(500).json({ error: "Internal server error" });
